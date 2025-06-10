@@ -52,3 +52,55 @@ func (r *MemRegistry) Heartbeat(serviceName, instanceID string) error {
 	services[instanceID] = inst
 	return nil
 }
+
+func (r *MemRegistry) Deregister(serviceName, instanceID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	instances, ok := r.instances[serviceName]
+	if !ok {
+		return errors.New("service not found")
+	}
+
+	if _, ok := instances[instanceID]; !ok {
+		return errors.New("instance not found")
+	}
+
+	delete(instances, instanceID)
+
+	if len(instances) == 0 {
+		delete(r.instances, serviceName)
+	}
+
+	return nil
+}
+
+func (r *MemRegistry) List(serviceName ...string) ([]model.Instance, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var result []model.Instance
+
+	if len(serviceName) == 1 {
+		instances, ok := r.instances[serviceName[0]]
+		if !ok {
+			return nil, nil
+		}
+		for _, inst := range instances {
+			if time.Since(inst.LastSeen) <= r.ttl {
+				result = append(result, inst)
+			}
+		}
+		return result, nil
+	}
+
+	for _, services := range r.instances {
+		for _, inst := range services {
+			if time.Since(inst.LastSeen) <= r.ttl {
+				result = append(result, inst)
+			}
+		}
+	}
+
+	return result, nil
+}
