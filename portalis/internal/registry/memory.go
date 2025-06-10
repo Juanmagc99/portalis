@@ -38,18 +38,18 @@ func (r *MemRegistry) Heartbeat(serviceName, instanceID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	services, ok := r.instances[serviceName]
+	service, ok := r.instances[serviceName]
 	if !ok {
 		return errors.New("service not found")
 	}
 
-	inst, ok := services[instanceID]
+	inst, ok := service[instanceID]
 	if !ok {
 		return errors.New("instance not found")
 	}
 
 	inst.LastSeen = time.Now()
-	services[instanceID] = inst
+	service[instanceID] = inst
 	return nil
 }
 
