@@ -21,6 +21,39 @@ func NewMemRegistry(ttl time.Duration) *MemRegistry {
 	}
 }
 
+func (r *MemRegistry) StartEvictor(evictInterval time.Duration, stopCh <-chan struct{}) {
+	go func() {
+		ticker := time.NewTicker(evictInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				r.evictExpired()
+			case <-stopCh:
+				return
+			}
+		}
+	}()
+}
+
+func (r *MemRegistry) evictExpired() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := time.Now()
+	for svc, instances := range r.instances {
+		for id, inst := range instances {
+			if now.Sub(inst.LastSeen) > r.ttl {
+				delete(instances, id)
+			}
+		}
+
+		if len(instances) == 0 {
+			delete(r.instances, svc)
+		}
+	}
+}
+
 func (r *MemRegistry) Register(inst model.Instance) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
