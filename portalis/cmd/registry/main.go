@@ -9,6 +9,7 @@ import (
 
 	"github.com/Juanmagc99/portalis/internal/handler"
 	"github.com/Juanmagc99/portalis/internal/registry"
+	"github.com/Juanmagc99/portalis/internal/rproxy"
 	"github.com/Juanmagc99/portalis/pkg/httperror"
 	"github.com/Juanmagc99/portalis/pkg/validation"
 	"github.com/go-playground/validator/v10"
@@ -33,6 +34,8 @@ func main() {
 	s.StartEvictor(evictInterval, stopCh)
 
 	handler.NewRoutes(e, s)
+
+	e.Use(rproxy.NewReverseProxyMiddleware(s))
 
 	go func() {
 		e.Logger.Fatal(e.Start("localhost:8080"))

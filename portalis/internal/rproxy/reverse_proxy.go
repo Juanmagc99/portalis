@@ -9,7 +9,7 @@ import (
 
 	"github.com/Juanmagc99/portalis/internal/balancer"
 	"github.com/Juanmagc99/portalis/internal/registry"
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 )
 
 // Proxy maneja el balanceo round-robin dinámico y proxy inverso.

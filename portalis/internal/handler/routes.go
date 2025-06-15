@@ -8,5 +8,10 @@ import (
 func NewRoutes(e *echo.Echo, store registry.Registry) {
 	rh := NewRegistryHandler(store)
 
-	e.POST("/api/registries", rh.Register)
+	a := e.Group("/api")
+
+	a.POST("/register", rh.Register)
+	a.PUT("/heartbeat", rh.Heartbeat)
+	a.DELETE("/deregister", rh.Deregister)
+	a.GET("/services", rh.List)
 }

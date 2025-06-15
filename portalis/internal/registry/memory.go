@@ -61,6 +61,7 @@ func (r *MemRegistry) Register(inst model.Instance) error {
 	if _, exists := r.services[inst.ServiceName]; !exists {
 		r.services[inst.ServiceName] = make(map[string]model.Instance)
 	}
+
 	inst.LastSeen = time.Now()
 	r.services[inst.ServiceName][inst.InstanceID] = inst
 	return nil
