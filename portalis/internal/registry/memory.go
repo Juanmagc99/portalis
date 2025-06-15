@@ -9,15 +9,15 @@ import (
 )
 
 type MemRegistry struct {
-	mu        sync.Mutex
-	instances map[string]map[string]model.Instance
-	ttl       time.Duration
+	rm       sync.Mutex
+	services map[string]map[string]model.Instance
+	ttl      time.Duration
 }
 
 func NewMemRegistry(ttl time.Duration) *MemRegistry {
 	return &MemRegistry{
-		instances: make(map[string]map[string]model.Instance),
-		ttl:       ttl,
+		services: make(map[string]map[string]model.Instance),
+		ttl:      ttl,
 	}
 }
 
@@ -37,103 +37,97 @@ func (r *MemRegistry) StartEvictor(evictInterval time.Duration, stopCh <-chan st
 }
 
 func (r *MemRegistry) evictExpired() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	rm := &r.rm
+	rm.Lock()
+	defer rm.Unlock()
 
 	now := time.Now()
-	for svc, instances := range r.instances {
+	for serviceName, instances := range r.services {
 		for id, inst := range instances {
 			if now.Sub(inst.LastSeen) > r.ttl {
 				delete(instances, id)
 			}
 		}
-
 		if len(instances) == 0 {
-			delete(r.instances, svc)
+			delete(r.services, serviceName)
 		}
 	}
 }
 
 func (r *MemRegistry) Register(inst model.Instance) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.rm.Lock()
+	defer r.rm.Unlock()
 
-	if _, ok := r.instances[inst.ServiceName]; !ok {
-		r.instances[inst.ServiceName] = make(map[string]model.Instance)
+	if _, exists := r.services[inst.ServiceName]; !exists {
+		r.services[inst.ServiceName] = make(map[string]model.Instance)
 	}
-
 	inst.LastSeen = time.Now()
-	r.instances[inst.ServiceName][inst.InstanceID] = inst
+	r.services[inst.ServiceName][inst.InstanceID] = inst
 	return nil
 }
 
 func (r *MemRegistry) Heartbeat(serviceName, instanceID string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.rm.Lock()
+	defer r.rm.Unlock()
 
-	service, ok := r.instances[serviceName]
-	if !ok {
+	instances, exists := r.services[serviceName]
+	if !exists {
 		return errors.New("service not found")
 	}
 
-	inst, ok := service[instanceID]
-	if !ok {
+	inst, exists := instances[instanceID]
+	if !exists {
 		return errors.New("instance not found")
 	}
-
 	inst.LastSeen = time.Now()
-	service[instanceID] = inst
+	instances[instanceID] = inst
 	return nil
 }
 
 func (r *MemRegistry) Deregister(serviceName, instanceID string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.rm.Lock()
+	defer r.rm.Unlock()
 
-	instances, ok := r.instances[serviceName]
-	if !ok {
+	instances, exists := r.services[serviceName]
+	if !exists {
 		return errors.New("service not found")
 	}
-
-	if _, ok := instances[instanceID]; !ok {
+	if _, exists = instances[instanceID]; !exists {
 		return errors.New("instance not found")
 	}
-
 	delete(instances, instanceID)
-
 	if len(instances) == 0 {
-		delete(r.instances, serviceName)
+		delete(r.services, serviceName)
 	}
-
 	return nil
 }
 
-func (r *MemRegistry) List(serviceName ...string) ([]model.Instance, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (r *MemRegistry) List(serviceNames ...string) ([]model.Instance, error) {
+	r.rm.Lock()
+	defer r.rm.Unlock()
 
+	now := time.Now()
 	var result []model.Instance
 
-	if len(serviceName) == 1 {
-		instances, ok := r.instances[serviceName[0]]
-		if !ok {
-			return nil, nil
-		}
-		for _, inst := range instances {
-			if time.Since(inst.LastSeen) <= r.ttl {
-				result = append(result, inst)
+	if len(serviceNames) > 0 {
+		for _, svc := range serviceNames {
+			if instances, exists := r.services[svc]; exists {
+				for _, inst := range instances {
+					if now.Sub(inst.LastSeen) <= r.ttl {
+						result = append(result, inst)
+					}
+				}
 			}
 		}
 		return result, nil
 	}
 
-	for _, services := range r.instances {
-		for _, inst := range services {
-			if time.Since(inst.LastSeen) <= r.ttl {
+	for _, instances := range r.services {
+		for _, inst := range instances {
+			if now.Sub(inst.LastSeen) <= r.ttl {
 				result = append(result, inst)
 			}
 		}
 	}
-
 	return result, nil
 }

@@ -11,7 +11,7 @@ import (
 
 type SvcInstRequest struct {
 	ServiceName string `json:"serviceName" validate:"required"`
-	InstanceID  string `json:"instanceID"  validate:"required"`
+	InstanceID  string `json:"instanceID" validate:"required"`
 }
 
 type RegistryHandler struct {
@@ -19,9 +19,7 @@ type RegistryHandler struct {
 }
 
 func NewRegistryHandler(store registry.Registry) *RegistryHandler {
-	return &RegistryHandler{
-		Store: store,
-	}
+	return &RegistryHandler{Store: store}
 }
 
 func (h *RegistryHandler) Register(c echo.Context) error {
@@ -40,10 +38,8 @@ func (h *RegistryHandler) Register(c echo.Context) error {
 		return he
 	}
 
-	m := fmt.Sprintf("Added instance: %+v", req)
-	return c.JSON(http.StatusOK, echo.Map{
-		"message": m,
-	})
+	message := fmt.Sprintf("Added instance: %%+v", req)
+	return c.JSON(http.StatusOK, echo.Map{"message": message})
 }
 
 func (h *RegistryHandler) Heartbeat(c echo.Context) error {
@@ -64,4 +60,46 @@ func (h *RegistryHandler) Heartbeat(c echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *RegistryHandler) Deregister(c echo.Context) error {
+	var req SvcInstRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "bad request")
+	}
+
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	err := h.Store.Deregister(req.ServiceName, req.InstanceID)
+	if err != nil {
+		he := echo.NewHTTPError(http.StatusInternalServerError, "failed to process deregister")
+		he.Internal = err
+		return he
+	}
+
+	message := fmt.Sprintf("Deregistered instance: %s from service %s", req.InstanceID, req.ServiceName)
+	return c.JSON(http.StatusOK, echo.Map{"message": message})
+}
+
+func (h *RegistryHandler) List(c echo.Context) error {
+	svcNames := c.QueryParams()["svc"]
+	var instances []model.Instance
+	var err error
+
+	switch len(svcNames) {
+	case 0:
+		instances, err = h.Store.List()
+	default:
+		instances, err = h.Store.List(svcNames...)
+	}
+
+	if err != nil {
+		he := echo.NewHTTPError(http.StatusInternalServerError, "failed to list services")
+		he.Internal = err
+		return he
+	}
+
+	return c.JSON(http.StatusOK, instances)
 }
