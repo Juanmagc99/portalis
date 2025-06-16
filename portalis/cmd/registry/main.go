@@ -27,7 +27,7 @@ func main() {
 	e.Validator = &validation.CustomValidator{Validator: validator.New()}
 
 	ttl := 30 * time.Second
-	evictInterval := 10 * time.Second
+	evictInterval := 15 * time.Second
 
 	s := registry.NewMemRegistry(ttl)
 	stopCh := make(chan struct{})
