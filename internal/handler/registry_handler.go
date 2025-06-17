@@ -39,7 +39,7 @@ func (h *RegistryHandler) Register(c echo.Context) error {
 	}
 
 	message := fmt.Sprintf("Added instance: %%+v", req)
-	return c.JSON(http.StatusOK, echo.Map{"message": message})
+	return c.JSON(http.StatusCreated, echo.Map{"message": message})
 }
 
 func (h *RegistryHandler) Heartbeat(c echo.Context) error {
